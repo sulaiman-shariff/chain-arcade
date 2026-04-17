@@ -1,0 +1,10 @@
+[package]
+name = "chain_arcade"
+version = "1.0.0"
+authors = ["chain arcade"]
+
+[addresses]
+chain_arcade = "0xabc"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "main" }

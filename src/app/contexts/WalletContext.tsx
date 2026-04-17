@@ -1,92 +1,113 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { createContext, useContext, ReactNode, useMemo, useState } from 'react';
+
+type AptosProvider = {
+  connect: () => Promise<{ address: string }>;
+  disconnect: () => Promise<void>;
+  account: () => Promise<{ address: string }>;
+  signAndSubmitTransaction: (tx: {
+    type: 'entry_function_payload';
+    function: string;
+    type_arguments?: string[];
+    arguments: (string | number | boolean)[];
+  }) => Promise<{ hash: string }>;
+};
 
 type WalletContextType = {
   walletAddress: string | null;
   walletConnected: boolean;
   shortAddress: string | null;
-  ensName: string | null;
+  walletName: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
+  signAndSubmitEntryFunction: (
+    func: string,
+    args: (string | number | boolean)[]
+  ) => Promise<{ hash: string }>;
 };
 
 const WalletContext = createContext<WalletContextType | null>(null);
 
+function getProvider(): { name: string; provider: AptosProvider } | null {
+  if (typeof window === 'undefined') return null;
+
+  const petra = (window as any).aptos as AptosProvider | undefined;
+  if (petra && typeof petra.connect === 'function') {
+    return { name: 'Petra', provider: petra };
+  }
+
+  const martian = (window as any).martian as AptosProvider | undefined;
+  if (martian && typeof martian.connect === 'function') {
+    return { name: 'Martian', provider: martian };
+  }
+
+  return null;
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { login, logout, authenticated, ready, user } = usePrivy();
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [ensName, setEnsName] = useState<string | null>(null);
-  const [shortAddress, setShortAddress] = useState<string | null>(null);
-  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletName, setWalletName] = useState<string | null>(null);
 
-  // Update wallet state when authentication changes
-  useEffect(() => {
-    if (ready && authenticated && user?.wallet?.address) {
-      const address = user.wallet.address;
-      setWalletAddress(address);
-      setShortAddress(`${address.slice(0, 6)}...${address.slice(-4)}`);
-      setWalletConnected(true);
-    } else {
-      setWalletAddress(null);
-      setShortAddress(null);
-      setWalletConnected(false);
-    }
-  }, [ready, authenticated, user]);
-
-  // Connect wallet function
   const connectWallet = async (): Promise<void> => {
-    if (!authenticated) {
-      await login();
+    const detected = getProvider();
+    if (!detected) {
+      throw new Error('Install Petra or Martian Aptos wallet extension.');
     }
+
+    const account = await detected.provider.connect();
+    setWalletAddress(account.address);
+    setWalletName(detected.name);
   };
 
-  // Disconnect wallet function
   const disconnectWallet = async (): Promise<void> => {
-    if (authenticated) {
-      await logout();
+    const detected = getProvider();
+    if (!detected) return;
+    await detected.provider.disconnect();
+    setWalletAddress(null);
+    setWalletName(null);
+  };
+
+  const signAndSubmitEntryFunction = async (
+    func: string,
+    args: (string | number | boolean)[]
+  ): Promise<{ hash: string }> => {
+    const detected = getProvider();
+    if (!detected) {
+      throw new Error('No Aptos wallet provider found');
     }
+
+    return detected.provider.signAndSubmitTransaction({
+      type: 'entry_function_payload',
+      function: func,
+      arguments: args
+    });
   };
 
-  // Fetch ENS name if available (could be expanded in the future)
-  useEffect(() => {
-    const fetchEnsName = async () => {
-      if (walletAddress) {
-        try {
-          // This is a placeholder - you could implement actual ENS resolution here
-          // For now we'll just set it to null
-          setEnsName(null);
-        } catch (error) {
-          console.error("Error fetching ENS name:", error);
-          setEnsName(null);
-        }
-      }
-    };
+  const shortAddress = walletAddress
+    ? `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`
+    : null;
 
-    fetchEnsName();
-  }, [walletAddress]);
-
-  const value = {
-    walletAddress,
-    walletConnected,
-    shortAddress,
-    ensName,
-    connectWallet,
-    disconnectWallet,
-  };
-
-  return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+  const value = useMemo(
+    () => ({
+      walletAddress,
+      walletConnected: Boolean(walletAddress),
+      shortAddress,
+      walletName,
+      connectWallet,
+      disconnectWallet,
+      signAndSubmitEntryFunction
+    }),
+    [walletAddress, shortAddress, walletName]
   );
+
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
 
 export function useWallet() {
   const context = useContext(WalletContext);
-  if (context === null) {
-    throw new Error('useWallet must be used within a WalletProvider');
+  if (!context) {
+    throw new Error('useWallet must be used within WalletProvider');
   }
   return context;
-} 
+}

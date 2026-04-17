@@ -1,8 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
 import { usePointsManager } from '@/hooks/usePointsManager';
+import { useWallet } from './WalletContext';
 
 type PointsContextType = {
   balance: number;
@@ -11,14 +11,14 @@ type PointsContextType = {
   refreshBalance: () => Promise<void>;
   loading: boolean;
   error: string | null;
-  etnPrice: number;
+  tokenPrice: number;
   isLoadingPrice: boolean;
 };
 
 const PointsContext = createContext<PointsContextType | null>(null);
 
 export function PointsProvider({ children }: { children: ReactNode }) {
-  const { authenticated, user } = usePrivy();
+  const { walletConnected } = useWallet();
   const { 
     balance, 
     convertToPoints, 
@@ -28,43 +28,43 @@ export function PointsProvider({ children }: { children: ReactNode }) {
     error 
   } = usePointsManager();
 
-  const [etnPrice, setEtnPrice] = useState<number>(0);
+  const [tokenPrice, setTokenPrice] = useState<number>(0);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
 
-  // Fetch ETN price
+  // Fetch APT price as an approximate market proxy.
   useEffect(() => {
-    const fetchEtnPrice = async () => {
+    const fetchTokenPrice = async () => {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=electroneum&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd');
         const data = await response.json();
-        if (data.electroneum && data.electroneum.usd) {
-          setEtnPrice(data.electroneum.usd);
+        if (data.aptos && data.aptos.usd) {
+          setTokenPrice(data.aptos.usd);
         } else {
-          console.error('Unexpected ETN price format:', data);
+          console.error('Unexpected Aptos price format:', data);
         }
         setIsLoadingPrice(false);
       } catch (error) {
-        console.error('Error fetching ETN price:', error);
+        console.error('Error fetching Aptos price:', error);
         setIsLoadingPrice(false);
       }
     };
 
-    fetchEtnPrice();
+    fetchTokenPrice();
     // Refresh price every 5 minutes
-    const interval = setInterval(fetchEtnPrice, 300000);
+    const interval = setInterval(fetchTokenPrice, 300000);
     return () => clearInterval(interval);
   }, []);
 
   // Fetch balance whenever authentication state changes
   useEffect(() => {
-    if (authenticated && user) {
+    if (walletConnected) {
       getBalance();
     }
-  }, [authenticated, user, getBalance]);
+  }, [walletConnected, getBalance]);
 
   // Refresh function that can be called from any component
   const refreshBalance = async () => {
-    if (authenticated && user) {
+    if (walletConnected) {
       await getBalance();
     }
   };
@@ -76,7 +76,7 @@ export function PointsProvider({ children }: { children: ReactNode }) {
     refreshBalance,
     loading,
     error,
-    etnPrice,
+    tokenPrice,
     isLoadingPrice
   };
 

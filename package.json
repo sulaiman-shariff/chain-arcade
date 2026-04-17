@@ -1,5 +1,5 @@
 {
-  "name": "portfolio-website",
+  "name": "chain-arcade",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,17 +11,15 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
     "@headlessui/react": "^2.2.0",
-    "@privy-io/react-auth": "^2.6.2",
+    "@aptos-labs/ts-sdk": "^1.33.0",
     "aos": "^2.3.4",
-    "ethers": "^5.7.2",
     "framer-motion": "^12.4.10",
     "lucide-react": "^0.476.0",
     "next": "15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
-    "use-sync-external-store": "^1.4.0",
-    "viem": "^2.23.8"
+    "use-sync-external-store": "^1.4.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

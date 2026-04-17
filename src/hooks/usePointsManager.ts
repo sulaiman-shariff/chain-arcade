@@ -1,38 +1,35 @@
 import { useState } from 'react';
-import { ethers } from 'ethers';
 import { useContracts } from './useContracts';
-import { usePrivy } from '@privy-io/react-auth';
+import { payloads } from '@/lib/aptos/payloads';
+import { viewPointsBalance } from '@/lib/aptos/views';
 
 /**
- * Custom hook for interacting with the PointsManager contract
+ * Custom hook for interacting with chain arcade points on Aptos
  * Provides functions for converting tokens, checking balances, etc.
  */
 export function usePointsManager() {
-  const { user } = usePrivy();
-  const { pointsManager } = useContracts();
+  const { accountAddress, execute } = useContracts();
   const [balance, setBalance] = useState<number>(0);
-  const [conversionRate, setConversionRate] = useState<number>(0);
-  const [platformFee, setPlatformFee] = useState<number>(0);
+  const [conversionRate] = useState<number>(1000);
+  const [platformFee] = useState<number>(5);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   /**
    * Get user's point balance
-   * @param address User address (optional, uses connected wallet if not provided)
+   * @param address User account (optional, uses connected wallet if not provided)
    */
   const getBalance = async (address?: string) => {
-    if (!pointsManager) return 0;
-    const userAddress = address || user?.wallet?.address;
+    const userAddress = address || accountAddress;
     if (!userAddress) return 0;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const balance = await pointsManager.getPointsBalance(userAddress);
-      const formattedBalance = Number(ethers.utils.formatUnits(balance, 0));
-      setBalance(formattedBalance);
-      return formattedBalance;
+      const nextBalance = await viewPointsBalance(userAddress);
+      setBalance(nextBalance);
+      return nextBalance;
     } catch (err: any) {
       console.error("Error getting balance:", err);
       setError(err.message || "Failed to get balance");
@@ -41,105 +38,53 @@ export function usePointsManager() {
       setLoading(false);
     }
   };
-  
+
   /**
    * Get platform conversion rate
    */
   const getConversionRate = async () => {
-    if (!pointsManager) return 0;
-    
-    try {
-      const rate = await pointsManager.conversionRate();
-      const formattedRate = Number(ethers.utils.formatUnits(rate, 0));
-      setConversionRate(formattedRate);
-      return formattedRate;
-    } catch (err: any) {
-      console.error("Error getting conversion rate:", err);
-      setError(err.message || "Failed to get conversion rate");
-      return 0;
-    }
+    return conversionRate;
   };
-  
+
   /**
    * Get platform fee percentage
    */
   const getPlatformFee = async () => {
-    if (!pointsManager) return 0;
-    
-    try {
-      const fee = await pointsManager.platformFee();
-      // Convert from basis points to percentage
-      const feePercentage = Number(ethers.utils.formatUnits(fee, 0)) / 100;
-      setPlatformFee(feePercentage);
-      return feePercentage;
-    } catch (err: any) {
-      console.error("Error getting platform fee:", err);
-      setError(err.message || "Failed to get platform fee");
-      return 0;
-    }
+    return platformFee;
   };
-  
+
   /**
-   * Convert ETN tokens to platform points
-   * @param amount Amount of ETN tokens to convert
+   * Convert chain arcade token to points
+   * @param amount Amount in whole token units
    */
   const convertToPoints = async (amount: string | number) => {
-    if (!pointsManager) {
-      setError("Points manager not initialized");
-      return false;
-    }
-    
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Convert amount to Wei
-      const amountInWei = ethers.utils.parseEther(amount.toString());
-      
-      const tx = await pointsManager.convertToPoints({ 
-        value: amountInWei
-      });
-      
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-      console.log("Conversion transaction receipt:", receipt);
-      
-      // Update balance
+      const amountOctas = BigInt(Math.floor(Number(amount) * 100_000_000)).toString();
+      await execute(payloads.convertToPoints(amountOctas));
       await getBalance();
       return true;
     } catch (err: any) {
       console.error("Error converting to points:", err);
-      setError(err.message || "Failed to convert tokens to points");
+      setError(err.message || "Failed to convert token to points");
       return false;
     } finally {
       setLoading(false);
     }
   };
-  
+
   /**
-   * Withdraw platform points back to ETN tokens
+   * Convert points back to chain arcade token
    * @param amount Amount of points to withdraw
    */
   const withdrawPoints = async (amount: string | number) => {
-    if (!pointsManager) {
-      setError("Points manager not initialized");
-      return false;
-    }
-    
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Convert amount to bigint
-      const pointsAmount = ethers.BigNumber.from(amount.toString());
-      
-      const tx = await pointsManager.withdrawPoints(pointsAmount);
-      
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-      console.log("Withdrawal transaction receipt:", receipt);
-      
-      // Update balance
+      await execute(payloads.convertToToken(Math.floor(Number(amount))));
       await getBalance();
       return true;
     } catch (err: any) {
@@ -150,7 +95,7 @@ export function usePointsManager() {
       setLoading(false);
     }
   };
-  
+
   return {
     balance,
     conversionRate,

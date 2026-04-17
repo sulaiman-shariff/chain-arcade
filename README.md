@@ -1,125 +1,123 @@
-# ElectroRcade
+# chain arcade
 
-![Screenshot 2025-03-11 162139](https://github.com/user-attachments/assets/ab595477-fee5-440e-b76e-fec9adee736c)
+Aptos-native competitive gaming platform with trustless room escrow, deterministic prize payouts, and on-chain player statistics.
 
-## Play-to-Earn Gaming Platform on Electroneum Blockchain
+## Overview
 
-ElectroRcade is a skill-based competitive gaming platform built on the Electroneum blockchain where players can earn real rewards through mini-games. Inspired by platforms like MPL and Winzo, our platform enables users to compete in simple yet engaging games with entry fees, creating prize pools where winners earn real value in the form of ETN tokens.
+chain arcade is designed for skill-based mini-games where each match uses an on-chain room lifecycle:
 
-## 🎮 Project Overview
+1. Players convert token value into in-game points.
+2. A room creator opens a public, private, or tournament room with an entry fee.
+3. Participants join and lock points into room escrow.
+4. Game outcomes are validated off-chain, submitted on-chain with replay protection, and finalized on-chain.
+5. Winner payout and platform commission settlement execute deterministically in Move.
 
-ElectroRcade serves as a trustless intermediary, leveraging Electroneum blockchain for transparent and secure prize distribution. Players convert ETN into platform points, which they use to enter competitive game rooms. After competing in skill-based mini-games, winners receive prize pools (minus a small platform commission).
+## Architecture
 
-### Target Audience
-- Casual gamers looking for competitive play with real rewards
-- Crypto enthusiasts interested in gaming applications
-- Mobile gamers familiar with skill-based competition
-- Electroneum blockchain community members
+### Move package
 
-## ✨ Key Features
+Location: aptos/
 
-### Point System
-- **ETN Token Conversion**: Users deposit ETN which converts to platform points
-- **Flexible Denominations**: Various point packages available for different player budgets
-- **Quest Rewards**: Points earned through platform engagement and social activities
-- **Transparent Exchange Rate**: Clear conversion rates between ETN tokens and platform points
+Modules:
 
-### Game Room Mechanics
-- **Public Rooms**: Open to anyone with the required entry fee
-- **Private Rooms**: Accessible only with invite code
-- **Tournament Rooms**: Special events with larger prize pools
-- **Room Creation**: Players can create custom rooms with configurable parameters
+- chain_arcade_token.move
+  - Aptos fungible asset for the platform token.
+  - Capability-based mint/burn controls.
 
-### Game Portfolio
+- chain_arcade_points.move
+  - Integer-safe points ledger.
+  - Token <-> points conversion primitives.
 
-#### Initial Games
-1. **Flappy Bird Clone**
-   - Simple tap/click mechanics to navigate obstacles
-   - Increasing difficulty as game progresses
-   - Score based on distance traveled
+- chain_arcade_rooms.move
+  - Room creation/join/finalize/claim.
+  - Supports public, private, and tournament room types.
+  - Entry fee collection, prize pool accounting, and commission deduction.
+  - Replay protection through used nonce tracking.
+  - Single-claim enforcement per player per room.
+  - Event emission for room creation and finalization.
 
-2. **AI Challenge Game**
-   - Players attempt to trick AI into saying a specific word
-   - Target word generated uniquely for each game
-   - 1-minute time limit per player
-   - AI judging system determines winner based on closest attempt
+- chain_arcade_stats.move
+  - On-chain wins, losses, games played, and earnings.
+  - Event-driven updates for leaderboard indexing.
 
-#### Future Game Expansion
-- Racing games
-- Puzzle games
-- Card games
-- Trivia challenges
-- Reaction-time games
+### Frontend (Next.js)
 
-### Player Statistics & Leaderboards
-- Win/loss record tracking
-- Total earnings display
-- Games played statistics
-- Average score calculations
-- Game-specific rankings
-- Earnings leaderboards
+Key changes:
 
-## 🔧 Technical Architecture
+- Aptos wallet support through wallet adapter:
+  - Petra
+  - Martian
+- Aptos transaction and view integration via @aptos-labs/ts-sdk.
+- New hooks for points, rooms, and stats using Move entry functions and view functions.
+- Updated pages for:
+  - Room creation/join/play/claim
+  - Points conversion dashboard
+  - On-chain leaderboard display
 
-### Frontend
-- **Framework**: NextJS for fast, responsive UI
-- **Styling**: TailwindCSS for clean, consistent design
-- **Game Engine**: Canvas-based implementations for games
-- **Responsiveness**: Mobile-first design approach
+### Backend (validation service)
 
-### Blockchain Integration
-- **Authentication**: Privy Wallet for seamless user onboarding
-- **Smart Contracts**: Solidity contracts deployed on Electroneum Testnet/Mainnet
-- **On-Chain Elements**:
-  - Point balances
-  - Game results
-  - Prize distributions
-  - Player statistics
+Location: src/app/api/game/result/route.ts
 
-### Smart Contract Architecture
-- **Points Management Contract**: Handles ETN token/point conversion
-- **Game Room Contract**: Manages room creation and prize distribution
-- **Statistics Contract**: Records player and game statistics
+Responsibilities:
 
-## 💼 Business Model
+- Validate score submissions before on-chain execution.
+- Reject replay attempts using matchDigest deduplication.
+- Generate nonce + validator proof used by score submission flow.
 
-- **Primary Revenue**: 5-10% commission on game prize pools
-- **Secondary Revenue**: Premium features, cosmetics, and tournament entry fees
-- **Quest Rewards Sponsorships**: Partnerships with brands for sponsored quests
+This keeps core payout logic fully on-chain while preserving anti-cheat controls in the game-result pipeline.
 
-## 📦 Project Structure
+## Security model
 
-ElectroRcade follows a modular architecture with clear separation of concerns:
+- Prize distribution is finalized on-chain.
+- No off-chain actor can directly transfer prize funds.
+- Replay resistance:
+  - Match digest deduplication in backend validation.
+  - Nonce tracking in Move room state.
+- Fake-result resistance:
+  - Score submission path requires validator proof payload.
+- Double-claim protection:
+  - Per-player claim marker in room participants.
+- Integer-safe accounting:
+  - All balances and fee calculations use integer arithmetic.
 
-### Frontend Components
-- **UI Components**: Reusable interface elements with arcade-style aesthetics
-- **Game Modules**: Self-contained game implementations with shared scoring systems
-- **User Dashboard**: Profile, statistics, and earnings management
-- **Tournament System**: Room creation and matchmaking functionality
+## Environment variables
 
-### Smart Contracts
-- **PointsManager.sol**: Handles token conversion and point balances
-- **GameRoom.sol**: Manages competitive rooms and prize distribution
-- **StatisticsTracker.sol**: Records player performance and leaderboards
+Set these in .env.local:
 
-### Integration Layer
-- **Wallet Connection**: Seamless Privy integration for walletless onboarding
-- **Blockchain Interface**: API for interacting with Electroneum blockchain
-- **Data Persistence**: On-chain and off-chain data management
+- NEXT_PUBLIC_APTOS_NETWORK=testnet
+- NEXT_PUBLIC_APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+- NEXT_PUBLIC_CHAIN_ARCADE_PACKAGE_ADDRESS=0xabc
+- GAME_RESULT_VALIDATOR_SECRET=replace-with-strong-secret
 
-## 👥 Team
+## Development
 
-### [Tanishq Gupta]
-**Founder & Lead Developer**  
-Passionate blockchain developer with 19+ hackathon wins globally. Selected among 95 students for UZH Blockchain Summer School 2024. Expert in multi-chain development and Web3 innovation.  
-[LinkedIn](https://www.linkedin.com/in/tanishqgupta-tech/) · [Twitter/X](https://x.com/Tanishqistaken)
+Install dependencies:
 
-## 📞 Contact
+```bash
+npm install
+```
 
-For inquiries, please contact us at info@electrorcade.io
+Run app:
 
-**Official Links**
-- Website: https://electrorcade.io
-- Twitter: https://twitter.com/ElectroRcade
-- Discord: https://discord.gg/electrorcade
-- GitHub: https://github.com/ElectroRcade
+```bash
+npm run dev
+```
+
+Optional Move workflow (Aptos CLI required):
+
+```bash
+cd aptos
+aptos move compile
+aptos move test
+```
+
+## Extending with new games
+
+To add a game type:
+
+1. Add a new game type constant in src/constants/contracts.ts.
+2. Extend room/game validation logic in backend validator.
+3. Add game-specific UI and score generation.
+4. Keep payout and escrow logic unchanged in chain_arcade_rooms.
+
+This preserves a modular architecture while scaling the game portfolio safely.
